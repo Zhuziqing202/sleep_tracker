@@ -1,0 +1,19 @@
+name: sleep_tracker
+description: A sleep tracking app
+version: 1.0.0+1
+
+environment:
+  sdk: ">=2.17.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  health: ^8.1.0
+  font_awesome_flutter: ^10.6.0
+  sensors_plus: ^4.0.0
+  shared_preferences: ^2.2.2
+  cupertino_icons: ^1.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter 
