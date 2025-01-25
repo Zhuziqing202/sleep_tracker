@@ -1,6 +1,6 @@
 # sleep_tracker
 
-A new Flutter project.
+This project is a sleep tool developed based on Flutter that reads Apple Health data. It provides users with sounds at different frequencies according to their sleep stages. The project is currently under development, with two data sources for sleep information: one based on HealthKit data and the other on simple accelerometer data. This project is developed by undergraduate students majoring in Psychology at Southwest University.
 
 ## Getting Started
 
