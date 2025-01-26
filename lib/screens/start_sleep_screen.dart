@@ -3,6 +3,9 @@ import 'dart:async';
 import '../utils/sleep_stage_detector.dart';
 import '../utils/sleep_data_manager.dart';
 import '../models/sleep_record.dart';
+import '../widgets/music_settings_card.dart';
+import '../controllers/audio_controller.dart';
+import '../widgets/audio_selection_card.dart';
 
 // 睡眠状态枚举
 enum SleepState {
@@ -27,10 +30,14 @@ class _StartSleepScreenState extends State<StartSleepScreen> {
   Duration _sleepDuration = Duration.zero;  // 已睡眠时长
   SleepStageDetector? _sleepStageDetector;
   String _currentSleepStage = '未开始';
+  double _volume = 0.5;
+  bool _isPlayingMusic = false;
+  late AudioController _audioController;
 
   @override
   void initState() {
     super.initState();
+    _audioController = AudioController();
     // 设置默认时间
     final now = DateTime.now();
     _earliestWakeTime = now.add(const Duration(hours: 8));
@@ -127,6 +134,7 @@ class _StartSleepScreenState extends State<StartSleepScreen> {
   @override
   void dispose() {
     _sleepTimer?.cancel();
+    _audioController.dispose();
     super.dispose();
   }
 
@@ -141,68 +149,93 @@ class _StartSleepScreenState extends State<StartSleepScreen> {
   // 构建设置界面
   Widget _buildSetupScreen() {
     return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemBackground,
+      backgroundColor: CupertinoColors.systemGroupedBackground,  // 修改背景色
       navigationBar: const CupertinoNavigationBar(
         middle: Text('开始睡眠'),
       ),
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
+        child: SingleChildScrollView(  // 添加滚动支持
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // 时间选择器容器
-              Row(
-                children: [
-                  // 最早醒来时间选择器
-                  Expanded(
-                    child: _buildTimeSelector(
-                      '最早醒来时间',
-                      _earliestWakeTime,
-                      (DateTime time) {
-                        setState(() => _earliestWakeTime = time);
-                      },
+              // 唤醒时间设置卡片
+              Container(
+                margin: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemBackground,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: CupertinoColors.systemGrey.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
                     ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '唤醒时间',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildTimeSelector(
+                              '最早',
+                              _earliestWakeTime,
+                              (DateTime time) {
+                                setState(() => _earliestWakeTime = time);
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _buildTimeSelector(
+                              '最晚',
+                              _latestWakeTime,
+                              (DateTime time) {
+                                setState(() => _latestWakeTime = time);
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 16),
-                  // 最晚醒来时间选择器
-                  Expanded(
-                    child: _buildTimeSelector(
-                      '最晚醒来时间',
-                      _latestWakeTime,
-                      (DateTime time) {
-                        setState(() => _latestWakeTime = time);
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 20),
-              const Text(
-                '智能闹钟将在您的浅睡眠阶段唤醒您，\n让您醒来更加轻松自然。',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: CupertinoColors.systemGrey,
-                  fontSize: 14,
                 ),
               ),
-              
-              const SizedBox(height: 20),
-              Text(
-                _getExpectedSleepDuration(),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+
+              // 音乐设置卡片
+              MusicSettingsCard(
+                volume: _volume,
+                isPlaying: _isPlayingMusic,
+                onVolumeChanged: (value) {
+                  setState(() => _volume = value);
+                },
+                onPlayingChanged: (value) {
+                  setState(() => _isPlayingMusic = value);
+                },
               ),
-              
-              const SizedBox(height: 40),
-              CupertinoButton.filled(
-                onPressed: _earliestWakeTime != null && _latestWakeTime != null
-                    ? _startSleep
-                    : null,
-                child: const Text('开始睡眠'),
+
+              // 预期睡眠时长和说明
+              _buildExpectedDurationCard(),
+
+              // 开始睡眠按钮
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: CupertinoButton.filled(
+                  onPressed: _earliestWakeTime != null && _latestWakeTime != null
+                      ? _startSleep
+                      : null,
+                  child: const Text('开始睡眠'),
+                ),
               ),
             ],
           ),
@@ -214,51 +247,102 @@ class _StartSleepScreenState extends State<StartSleepScreen> {
   // 构建睡眠中界面
   Widget _buildSleepingScreen() {
     return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemBackground,
+      backgroundColor: CupertinoColors.systemGroupedBackground,
       navigationBar: const CupertinoNavigationBar(
         middle: Text('睡眠监测中'),
       ),
       child: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  '当前睡眠阶段\n$_currentSleepStage',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    height: 1.5,
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              // 睡眠状态卡片
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemBackground,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: CupertinoColors.systemGrey.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Text(
+                        '当前睡眠阶段\n$_currentSleepStage',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        '已睡眠时间\n${_formatDuration(_sleepDuration)}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 20),
-                Text(
-                  '已睡眠时间\n${_formatDuration(_sleepDuration)}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    height: 1.5,
+              ),
+
+              // 唤醒时间卡片
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemBackground,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: CupertinoColors.systemGrey.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Text(
+                        '预计唤醒时间\n${_earliestWakeTime?.hour}:${_earliestWakeTime?.minute} - '
+                        '${_latestWakeTime?.hour}:${_latestWakeTime?.minute}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 40),
-                Text(
-                  '预计唤醒时间\n${_earliestWakeTime?.hour}:${_earliestWakeTime?.minute} - '
-                  '${_latestWakeTime?.hour}:${_latestWakeTime?.minute}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    height: 1.5,
+              ),
+
+              AudioSelectionCard(
+                audioController: _audioController,
+                volume: _volume,
+              ),
+
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                child: SizedBox(
+                  width: double.infinity,  // 按钮填满宽度
+                  child: CupertinoButton.filled(
+                    onPressed: _endSleep,
+                    child: const Text('结束睡眠'),
                   ),
                 ),
-                const SizedBox(height: 60),
-                CupertinoButton.filled(  // 使用 filled 样式
-                  onPressed: _endSleep,
-                  child: const Text('结束睡眠'),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -290,6 +374,45 @@ class _StartSleepScreenState extends State<StartSleepScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  // 修改预期睡眠时长卡片的宽度
+  Widget _buildExpectedDurationCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: CupertinoColors.systemBackground,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: CupertinoColors.systemGrey.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Text(
+            _getExpectedSleepDuration(),
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '智能闹钟将在您的浅睡眠阶段唤醒您，\n让您醒来更加轻松自然。',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: CupertinoColors.systemGrey,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
     );
   }
 } 

@@ -13,7 +13,12 @@ dependencies:
   sensors_plus: ^4.0.0
   shared_preferences: ^2.2.2
   cupertino_icons: ^1.0.2
+  just_audio: ^0.9.34
 
 dev_dependencies:
   flutter_test:
     sdk: flutter 
+
+flutter:
+  assets:
+    - assets/audio/ 
